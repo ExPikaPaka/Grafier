@@ -7,7 +7,6 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <fileapi.h>
-#include <wchar.h>
 #undef min
 #undef max
 #else
@@ -20,58 +19,68 @@
 namespace ent {
     namespace io {
 
-        bool directoryExists(const std::wstring& dirPath) {
+        bool fileExists(const std::string& filePath) {
             #ifdef _WIN32
-            DWORD ftyp = GetFileAttributesW(dirPath.c_str());
-            return (ftyp != INVALID_FILE_ATTRIBUTES && (ftyp & FILE_ATTRIBUTE_DIRECTORY));
+            DWORD ftyp = GetFileAttributesA(filePath.c_str());
+            return (ftyp != INVALID_FILE_ATTRIBUTES && !(ftyp & FILE_ATTRIBUTE_DIRECTORY));
             #else
             struct stat info;
-            return (stat(std::string(dirPath.begin(), dirPath.end()).c_str(), &info) == 0 && (info.st_mode & S_IFDIR));
+            return (stat(filePath.c_str(), &info) == 0 && S_ISREG(info.st_mode));
             #endif
         }
 
-        bool createDirectory(const std::wstring& dirPath) {
+        bool directoryExists(const std::string& dirPath) {
+            #ifdef _WIN32
+            DWORD ftyp = GetFileAttributesA(dirPath.c_str());
+            return (ftyp != INVALID_FILE_ATTRIBUTES && (ftyp & FILE_ATTRIBUTE_DIRECTORY));
+            #else
+            struct stat info;
+            return (stat(dirPath.c_str(), &info) == 0 && (info.st_mode & S_IFDIR));
+            #endif
+        }
+
+        bool createDirectory(const std::string& dirPath) {
             if (!directoryExists(dirPath)) {
                 #ifdef _WIN32
-                return CreateDirectoryW(dirPath.c_str(), NULL) != 0;
+                return CreateDirectoryA(dirPath.c_str(), NULL) != 0;
                 #else
-                return mkdir(std::string(dirPath.begin(), dirPath.end()).c_str(), 0755) == 0;
+                return mkdir(dirPath.c_str(), 0755) == 0;
                 #endif
             }
             return false;
         }
 
-        bool clearDirectory(const std::wstring& dirPath, bool debug = false) {
+        bool clearDirectory(const std::string& dirPath, bool debug = false) {
             #ifdef _WIN32
-            std::wstring searchPath = dirPath + L"\\*";
-            WIN32_FIND_DATAW findData;
-            HANDLE hFind = FindFirstFileW(searchPath.c_str(), &findData);
+            std::string searchPath = dirPath + "\\*";
+            WIN32_FIND_DATAA findData;
+            HANDLE hFind = FindFirstFileA(searchPath.c_str(), &findData);
 
             if (hFind != INVALID_HANDLE_VALUE) {
                 do {
-                    const std::wstring fileName = findData.cFileName;
-                    if (fileName != L"." && fileName != L"..") {
-                        std::wstring fullPath = dirPath + L"\\" + fileName;
+                    const std::string fileName = findData.cFileName;
+                    if (fileName != "." && fileName != "..") {
+                        std::string fullPath = dirPath + "\\" + fileName;
 
                         if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
                             // Recursively delete the contents of the directory
                             clearDirectory(fullPath, debug);
-                            RemoveDirectoryW(fullPath.c_str());
+                            RemoveDirectoryA(fullPath.c_str());
                         } else {
-                            DeleteFileW(fullPath.c_str());
+                            DeleteFileA(fullPath.c_str());
                         }
                     }
-                } while (FindNextFileW(hFind, &findData) != 0);
+                } while (FindNextFileA(hFind, &findData) != 0);
                 FindClose(hFind);
                 return true;
             } else {
-                if (debug) std::wcerr << L"Error accessing directory: " << dirPath << std::endl;
+                if (debug) std::cerr << "Error accessing directory: " << dirPath << std::endl;
                 return false;
             }
             #else // POSIX (Linux/macOS)
-            DIR* dir = opendir(std::string(dirPath.begin(), dirPath.end()).c_str());
+            DIR* dir = opendir(dirPath.c_str());
             if (!dir) {
-                if (debug) std::cerr << "Error accessing directory: " << std::string(dirPath.begin(), dirPath.end()) << std::endl;
+                if (debug) std::cerr << "Error accessing directory: " << dirPath << std::endl;
                 return false;
             }
 
@@ -79,13 +88,13 @@ namespace ent {
             while ((entry = readdir(dir)) != nullptr) {
                 std::string fileName = entry->d_name;
                 if (fileName != "." && fileName != "..") {
-                    std::string fullPath = std::string(dirPath.begin(), dirPath.end()) + "/" + fileName;
+                    std::string fullPath = dirPath + "/" + fileName;
 
                     struct stat pathStat;
                     stat(fullPath.c_str(), &pathStat);
                     if (S_ISDIR(pathStat.st_mode)) {
                         // Recursively delete the contents of the subdirectory
-                        clearDirectory(std::wstring(fullPath.begin(), fullPath.end()), debug);
+                        clearDirectory(fullPath, debug);
                         rmdir(fullPath.c_str());
                     } else {
                         remove(fullPath.c_str());
@@ -97,13 +106,12 @@ namespace ent {
             #endif
         }
 
-
-        bool deleteDirectory(const std::wstring& dirPath) {
+        bool deleteDirectory(const std::string& dirPath) {
             if (directoryExists(dirPath)) {
                 #ifdef _WIN32
-                return RemoveDirectoryW(dirPath.c_str()) != 0;
+                return RemoveDirectoryA(dirPath.c_str()) != 0;
                 #else
-                return rmdir(std::string(dirPath.begin(), dirPath.end()).c_str()) == 0;
+                return rmdir(dirPath.c_str()) == 0;
                 #endif
             }
             return false;
