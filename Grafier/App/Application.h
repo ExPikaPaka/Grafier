@@ -2,16 +2,19 @@
 #include "../UI/GameWindow.h"
 #include "../Utility/Timer.h"
 #include <vector>
+#include "../Graph/Node.h"
 
 
 class Application {
 public:
 	Application();
-
+	
 	void runLoop();
 private:
-	i32 windowWidth = 900;
-	i32 windowHeight = 900;
+	ent::util::Logger* m_logger;
+
+	i32 windowWidth = 800;
+	i32 windowHeight = 640;
 	i32 imagePathBufferSize = 4096;
 	i32 fontSize = 18;
 	i32 paddingSmall = 4;
@@ -20,14 +23,40 @@ private:
 	i32 buttonHeightSmall = 30;
 	i32 buttonHeightMedium = 40;
 	f32v4 defaultTextColor = { 1, 1, 1, 1 };
+	i32 nodeSize = 20;
+
+	std::string resFilepath = "res/";
+	std::string fontsFilePath = resFilepath + "fonts/";
+	std::string logsFilePath = resFilepath + "logs/";
+	std::string settingsFilePath = resFilepath + "settings.xml";
+	std::string fontFileName = "Carlito-Bold.ttf";
+	std::string fontFilePath = fontsFilePath + fontFileName;
 
 	ent::ui::GameWindow m_window;
-	ent::util::Logger* m_logger;
+
+	std::vector<Node> nodes;
+
+	ent::util::Timer weightTimer;
+	i32 doubleClickThresh = 500;
+
+	bool inputActive = false;
+	i32v2 inputPos = {0,0};
+	i32* inputModifyValue = nullptr;
 
 	bool m_needToUpdate;
 
 	void handleUI();
 	void handleProcessing();
+
+	bool loadSettings(const std::string& filepath);
+	bool saveSettings(const std::string& filepath);
+	void setDefaultSettings();
+
+	///////// Processing ///////////////////////////////////////////////////
+
+	void addNode(i32 x, i32 y);
+	void moveNodes();
+	void modifyWeights();
 
 
 	///////// UI helping elements //////////////////////////////////////////
@@ -44,9 +73,16 @@ private:
 	// Deletes OpenGL texture
 	void deleteTexture(ui32 textureID);
 
+	void drawNodes();
+
+	void handleWeightModify();
 
 	// Adds circle drawCall using IMGUI
 	void drawCircle(i32v2& center, f32 radius, f32v4 color, bool filled = false, bool alwaysOnTop = false, float thickness = 1.0f, int segments = 64);   
+
+	void drawText(const i32v2& center, const std::string& text, const f32v4& color = {1, 1, 1, 1});
+
+	void drawLineWithText(const i32v2& start, const i32v2& end, const std::string& text, const f32v4& lineColor, const f32v4& textColor);
 
 	// Adds rectangle drawCall using IMGUI
 	void drawRectangle(i32v2 position, i32v2 size, f32v4 color, bool filled = false, float outlineThickness = 0.0f, bool alwaysOnTop = false);
