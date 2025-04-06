@@ -1337,6 +1337,9 @@
     <ClInclude Include="ThirdParty\glad\glad\khrplatform.h">
       <Filter>Файлы заголовков</Filter>
     </ClInclude>
+    <ClInclude Include="Graph\Node.h">
+      <Filter>Файлы заголовков</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="ThirdParty\glm\glm\detail\func_common.inl">

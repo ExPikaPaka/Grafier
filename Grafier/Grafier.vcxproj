@@ -160,6 +160,7 @@
     <ClInclude Include="Algorithm\Math.h" />
     <ClInclude Include="Algorithm\String.h" />
     <ClInclude Include="App\Application.h" />
+    <ClInclude Include="Graph\Node.h" />
     <ClInclude Include="Image\Image.h" />
     <ClInclude Include="IO\FileOperations.h" />
     <ClInclude Include="Logger\Logger.h" />
