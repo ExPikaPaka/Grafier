@@ -1,0 +1,3 @@
+<Settings windowWidth="900" windowHeight="900" imagePathBufferSize="4096" fontSize="18" paddingSmall="4" paddingMedium="12" paddingBig="24" buttonHeightSmall="30" buttonHeightMedium="40" font="">
+    <DefaultTextColor r="1" g="1" b="1" a="1"/>
+</Settings>
