@@ -25,7 +25,9 @@ namespace ent {
 		}
 
 		void Logger::setFilePath(std::string& path) {
-			filePath = path;
+			filePath = path + getDate();
+			file.close();
+			file.open(filePath, std::ios::app);
 		}
 
 		void Logger::setLogLevel(level logLevel) {
@@ -94,7 +96,7 @@ namespace ent {
 		Logger::Logger() {
 			logToConsole = true;
 			logToFile = true;
-			filePath = "assets/logs/" + getDate() + ".txt";
+			filePath = getDate() + ".txt";
 			file.open(filePath, std::ios::app);
 			logLevel = level::DEBUG;
 		}
