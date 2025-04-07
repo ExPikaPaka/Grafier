@@ -17,6 +17,85 @@
 
 // Todo reduce magic nubmers, rewrite code, continue with UI implementation & Minti algorithm
 
+Node* getNodeById(i32 id, std::vector<Node>& nodes) {
+	for (auto& node : nodes) {
+		if (node.id == id)
+			return &node;
+	}
+	return nullptr;
+}
+
+static void findShortestPathMinti(i32 startId, i32 endId, std::vector<Node>& nodes) {
+	std::vector<Node*> availableNodes;
+	std::vector<Node*> unAvailableNodes;
+
+	for (auto& node : nodes) {
+		node.totalWeight = -1;
+		for (auto& weight : node.weights) {
+			std::get<2>(weight) = false;
+			std::get<3>(weight) = false;
+		}
+
+		if (node.id != startId) {
+			unAvailableNodes.push_back(&node);
+		}
+		else {
+			availableNodes.push_back(&node);
+			node.totalWeight = 0;
+		}
+	}
+
+	while (unAvailableNodes.size()) {
+		auto initialNodes = availableNodes;
+		// Todo zero checks and etc
+		i32 minWeightId = 0;
+		i32 minWeight = INT_MAX;
+		Node* minNodeDest = nullptr;
+		Node* minNodeSrc = nullptr;
+
+		for (auto& node : initialNodes) {
+			for (int i = 0; i < node->weights.size(); i++) {
+				bool& processed = std::get<3>(node->weights[i]);
+				bool& optimal = std::get<2>(node->weights[i]);
+				i32 destId = std::get<0>(node->weights[i]);
+				i32 weight = std::get<1>(node->weights[i]) + (node->isTotalWeightSet() ? node->totalWeight : 0);
+
+				if (processed)
+					continue;
+
+				optimal = false;
+				Node* destNode = getNodeById(destId, nodes);
+				if (!destNode)
+					continue;
+
+				if (weight < minWeight) {
+					if (destNode->isTotalWeightSet() && weight > destNode->totalWeight)
+ 						continue;
+
+					minWeight = weight;
+					minWeightId = i;
+					minNodeDest = destNode;
+					minNodeSrc = node;
+				}
+			}
+		}
+
+		bool& processed = std::get<3>(minNodeSrc->weights[minWeightId]);
+		i32 destId = std::get<0>(minNodeSrc->weights[minWeightId]);
+ 		std::get<2>(minNodeSrc->weights[minWeightId]) = true;
+		i32& totalWeigth = minNodeDest->totalWeight;
+		totalWeigth = minWeight;
+		processed = true;
+
+		availableNodes.push_back(minNodeDest);
+
+		unAvailableNodes.erase(
+			std::remove_if(unAvailableNodes.begin(), unAvailableNodes.end(),
+						   [&](const Node* node) { return node->id == minNodeDest->id; }),
+			unAvailableNodes.end());
+	}
+}
+
 Application::Application() {
 
 	// Logger initialization
@@ -63,14 +142,25 @@ Application::Application() {
 
 	addNode(200, 200);
 	addNode(50, 50);
-	addNode(90, 50);
-	addNode(110, 50);
+	addNode(222, 50);
+	addNode(300, 50);
+	addNode(300, 100);
+	addNode(300, 150);
+	addNode(300, 200);
 
-	nodes[1].weights.push_back({0, 32});
-	nodes[0].weights.push_back({2, 15});
-	nodes[3].weights.push_back({0, 11});
-	nodes[3].weights.push_back({1, 2});
-	nodes[0].weights.push_back({1, 15});
+	setNodeWeight(1, 2, 9);
+	setNodeWeight(1, 3, 7);
+	setNodeWeight(1, 4, 6);
+	setNodeWeight(2, 3, 2);
+	setNodeWeight(2, 4, 8);
+	setNodeWeight(2, 5, 4);
+	setNodeWeight(2, 6, 6);
+	setNodeWeight(3, 5, 1);
+	setNodeWeight(2, 7, 7);
+	setNodeWeight(4, 6, 2);
+	setNodeWeight(5, 7, 8);
+	setNodeWeight(6, 7, 5);
+	setNodeWeight(7, 3, 4);
 }
 
 void Application::runLoop() {
@@ -116,6 +206,8 @@ void Application::handleUI() {
 
 void Application::handleProcessing() {
 	modifyWeights();
+
+	findShortestPathMinti(1, nodes.size(), nodes);
 	if (!m_needToUpdate) 
 		return;
 
@@ -226,8 +318,8 @@ void Application::drawCircle(i32v2& center, f32 radius, f32v4 color, bool always
 	}
 }
 
-void Application::drawText(const i32v2& center, const std::string& text, const f32v4& color) {
-	ImDrawList* drawList = ImGui::GetWindowDrawList();
+void Application::drawText(const i32v2& center, const std::string& text, const f32v4& color, bool alwaysOnTop) {
+	ImDrawList* drawList = alwaysOnTop? ImGui::GetForegroundDrawList() : ImGui::GetWindowDrawList();
 
 	ImVec2 textSize = ImGui::CalcTextSize(text.c_str());
 	ImVec2 centeredPos(center.x - textSize.x * 0.5f, center.y - textSize.y * 0.5f);
@@ -235,7 +327,7 @@ void Application::drawText(const i32v2& center, const std::string& text, const f
 	drawList->AddText(centeredPos, ImColor(color.r, color.g, color.b, color.a), text.c_str());
 }
 
-void Application::drawLineWithText(const i32v2& start, const i32v2& end, const std::string& text, const f32v4& lineColor, const f32v4& textColor) {
+void Application::drawLineWithText(const f32v2& start, const f32v2& end, f32 offset, const std::string& text, const f32v4& lineColor, const f32v4& textColor) {
 	ImDrawList* drawList = ImGui::GetWindowDrawList();
 
 	drawList->AddLine(ImVec2(start.x, start.y), ImVec2(end.x, end.y), ImColor(lineColor.r, lineColor.g, lineColor.b, lineColor.a), 2.0f);
@@ -253,8 +345,11 @@ void Application::drawLineWithText(const i32v2& start, const i32v2& end, const s
 
 	drawArrow(start, end);
 
-	i32v2 midpoint = {(start.x + end.x) / 2, (start.y + end.y) / 2};
+	f32v2 dir = glm::normalize(end - start);
+	f32 lengt = glm::length(end - start);
+	f32v2 midpoint = start + dir * lengt * offset;
 	ImVec2 textSize = ImGui::CalcTextSize(text.c_str());
+
 	drawList->AddText(ImVec2(midpoint.x - textSize.x / 2, midpoint.y - textSize.y / 2),
 					  ImColor(textColor.r, textColor.g, textColor.b, textColor.a),
 					  text.c_str());
@@ -301,14 +396,14 @@ static bool isNodeTwoSided(const Node& node, const Node& otherNode, const std::v
 	bool reverseDir = false;
 
 	for (const auto& weight : node.weights) {
-		if (weight.first == otherNode.id) {
+		if (std::get<0>(weight) == otherNode.id) {
 			directDir = true;
 			break;
 		}
 	}
 
 	for (const auto& weight : otherNode.weights) {
-		if (weight.first == node.id) {
+		if (std::get<0>(weight) == node.id) {
 			reverseDir = true;
 			break;
 		}
@@ -322,13 +417,13 @@ void Application::drawNodes() {
 		// Render lines
 		for (auto& weight : node.weights) {
 			auto it = std::find_if(nodes.begin(), nodes.end(), [weight](const Node& otherNode) {
-				return otherNode.id == weight.first; });
+				return otherNode.id == std::get<0>(weight); });
 
 			if (it == nodes.end())
 				continue;
 
-			f32v2 start = it->center;
-			f32v2 end = node.center;
+			f32v2 start = node.center;
+			f32v2 end = it->center;
 			f32v2 dir = glm::normalize(glm::vec3(end.x - start.x, end.y - start.y, 0));
 			f32v2 right = {dir.y, -dir.x};
 
@@ -336,14 +431,24 @@ void Application::drawNodes() {
 				start += right * (float)node.size * 0.5f;
 				end += right * (float)node.size * 0.5f;
 				start += dir * (float)node.size * cos(0.5f);
-				end -= dir * (float)it->size * cos(0.5f);
+				end -= dir * (float)node.size * cos(0.5f);
 			} else {
 				start += dir * (float)node.size;
-				end -= dir * (float)it->size;
+				end -= dir * (float)node.size;
 			}
 		
-			std::string text = std::to_string(weight.second);
-			drawLineWithText(start, end, text, {0.269,0.496,0.5,1}, {1,1,1,1});
+			std::string weidghtText = std::to_string(std::get<1>(weight));
+			Node* destNode = getNodeById(std::get<0>(weight), nodes);
+			std::string totalWeightText = std::to_string(destNode->totalWeight);
+
+			drawText(destNode->center - i32v2(0, destNode->size * 1.5), totalWeightText, {1,1,1,1}, true);
+
+			bool optimal = std::get<2>(weight);
+			if (optimal) {
+				drawLineWithText(start, end, 0.5, weidghtText, {0.569,0.196,0.1,1}, {1,1,1,1});
+			} else {
+				drawLineWithText(start, end, 0.5, weidghtText, {0.269,0.496,0.5,1}, {1,1,1,1});
+			}
 		}
 
 		// Render nodes
@@ -367,7 +472,7 @@ void Application::handleWeightModify() {
 		snprintf(inputBuf, sizeof(inputBuf), "%d", *inputModifyValue);
 		initial = false;
 		oldValue = *inputModifyValue;
-		*inputModifyValue = 0;
+		*inputModifyValue = -1;
 	}
 
 	std::string inputId = "##inputField";
@@ -406,8 +511,8 @@ void Application::handleWeightModify() {
 
 
 void Application::addNode(i32 x, i32 y) {
-	i32 id = nodes.size();
-	Node node({x, y}, nodeSize, {0.972,0.624,0.357,1}, id);
+	i32 id = nodes.size() + 1;
+	Node node({x, y}, nodeSize, {0.972,0.624,0.357,1}, id, -1);
 	nodes.push_back(node);
 }
 
@@ -467,7 +572,7 @@ void Application::modifyWeights() {
 
 		for (auto& weight : node.weights) {
 			auto it = std::find_if(nodes.begin(), nodes.end(), [weight](const Node& otherNode) {
-				return otherNode.id == weight.first; });
+				return otherNode.id == std::get<0>(weight); });
 
 			if (it == nodes.end())
 				continue;
@@ -502,10 +607,38 @@ void Application::modifyWeights() {
 			if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
 				inputActive = true;
 				inputPos = mid;
-				inputModifyValue = &weight.second;
+				inputModifyValue = &std::get<1>(weight);
 			}
 		}
 	
+	}
+}
+
+void Application::setNodeWeight(i32 nodeId, i32 destId, i32 cost) {
+	for (auto& node : nodes) {
+		if (node.id != nodeId)
+			continue;
+
+		bool exists = false;
+		bool optimal = false;
+		for (auto& weight : node.weights) {
+			if (std::get<1>(weight) > cost) {
+				std::get<2>(weight) = false;
+				optimal = true;
+			}
+	
+			if (std::get<0>(weight) != destId)
+				continue;
+
+			std::get<1>(weight) = cost;
+			exists = true;
+		}
+
+		if (!node.weights.size())
+			optimal = true;
+
+		if (!exists)
+			node.weights.emplace_back(destId, cost, optimal, false);
 	}
 }
 

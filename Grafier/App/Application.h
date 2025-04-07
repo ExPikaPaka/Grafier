@@ -57,6 +57,7 @@ private:
 	void addNode(i32 x, i32 y);
 	void moveNodes();
 	void modifyWeights();
+	void setNodeWeight(i32 nodeId, i32 destId, i32 cost);
 
 
 	///////// UI helping elements //////////////////////////////////////////
@@ -80,9 +81,9 @@ private:
 	// Adds circle drawCall using IMGUI
 	void drawCircle(i32v2& center, f32 radius, f32v4 color, bool filled = false, bool alwaysOnTop = false, float thickness = 1.0f, int segments = 64);   
 
-	void drawText(const i32v2& center, const std::string& text, const f32v4& color = {1, 1, 1, 1});
+	void drawText(const i32v2& center, const std::string& text, const f32v4& color = {1, 1, 1, 1}, bool alwaysOnTop = false);
 
-	void drawLineWithText(const i32v2& start, const i32v2& end, const std::string& text, const f32v4& lineColor, const f32v4& textColor);
+	void drawLineWithText(const f32v2& start, const f32v2& end, f32 offset, const std::string& text, const f32v4& lineColor, const f32v4& textColor);
 
 	// Adds rectangle drawCall using IMGUI
 	void drawRectangle(i32v2 position, i32v2 size, f32v4 color, bool filled = false, float outlineThickness = 0.0f, bool alwaysOnTop = false);
