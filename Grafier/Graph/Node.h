@@ -1,7 +1,17 @@
 #pragma once
 #include <vector>
-#include <tuple>
 #include "../Utility/DataTypes.h"
+
+struct Weight {
+	Weight(int dest, int weight, bool optimal, bool processed):
+		dest(dest), weight(weight), optimal(optimal), processed(processed) {};
+
+	int dest = -1;
+	int weight = -1;
+	bool optimal = false;
+	bool processed = false;
+	bool targetPath = false;
+};
 
 struct Node {
 	Node() {};
@@ -16,5 +26,6 @@ struct Node {
 
 	i32 id = 0;
 	i32 totalWeight = -1;
-	std::vector<std::tuple<int, int, bool, bool>> weights; // Destination id, weight, optimal, processed
+	bool hasPath = false;
+	std::vector<Weight> weights; // Destination id, weight, optimal, processed
 };

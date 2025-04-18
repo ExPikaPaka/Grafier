@@ -25,16 +25,73 @@ Node* getNodeById(i32 id, std::vector<Node>& nodes) {
 	return nullptr;
 }
 
+static bool nodeHasPath(Node& targetNode, std::vector<Node>& nodes) {
+	for (auto& node : nodes) {
+		for (auto& weight : node.weights) {
+			if (weight.dest != targetNode.id)
+				continue;
+
+			if (node.hasPath)
+				return true;
+			
+			if (nodeHasPath(node, nodes)) {
+				return true;
+			}	
+		}
+	}
+	return false;
+}
+
+static void fillShortestPath(i32 endId, std::vector<Node>& nodes) {
+	for (auto& node : nodes) {
+		for (auto& weight : node.weights) {
+			if (weight.dest != endId)
+				continue;
+
+			if (weight.optimal && weight.dest == endId) {
+				weight.targetPath = true;
+				fillShortestPath(node.id, nodes);
+			}
+		}
+	}
+}
+
 static void findShortestPathMinti(i32 startId, i32 endId, std::vector<Node>& nodes) {
 	std::vector<Node*> availableNodes;
 	std::vector<Node*> unAvailableNodes;
 
+	Node* startNode = getNodeById(startId, nodes);
+	Node* endNode = getNodeById(endId, nodes);
+
+	if (!startNode || !endNode) {
+		return;
+	}
+
+	startNode->hasPath = true;
+	endNode->hasPath = true;
+
 	for (auto& node : nodes) {
 		node.totalWeight = -1;
 		for (auto& weight : node.weights) {
-			std::get<2>(weight) = false;
-			std::get<3>(weight) = false;
+			weight.optimal = false;
+			weight.processed = false;
 		}
+
+		if (node.id == startId || node.id == endId) {
+			continue;
+		}
+
+		if (nodeHasPath(node, nodes)) {
+			node.hasPath = true;
+		} else {
+			node.hasPath = false;
+		}
+	}
+
+	for (auto& node : nodes) {
+
+		if (node.id != startId && node.id != endId && !node.hasPath)
+			continue;
 
 		if (node.id != startId) {
 			unAvailableNodes.push_back(&node);
@@ -43,6 +100,7 @@ static void findShortestPathMinti(i32 startId, i32 endId, std::vector<Node>& nod
 			availableNodes.push_back(&node);
 			node.totalWeight = 0;
 		}
+
 	}
 
 	while (unAvailableNodes.size()) {
@@ -55,10 +113,10 @@ static void findShortestPathMinti(i32 startId, i32 endId, std::vector<Node>& nod
 
 		for (auto& node : initialNodes) {
 			for (int i = 0; i < node->weights.size(); i++) {
-				bool& processed = std::get<3>(node->weights[i]);
-				bool& optimal = std::get<2>(node->weights[i]);
-				i32 destId = std::get<0>(node->weights[i]);
-				i32 weight = std::get<1>(node->weights[i]) + (node->isTotalWeightSet() ? node->totalWeight : 0);
+				bool& processed = node->weights[i].processed;
+				bool& optimal = node->weights[i].optimal;
+				i32 destId = node->weights[i].dest;
+				i32 weight = node->weights[i].weight + (node->isTotalWeightSet() ? node->totalWeight : 0);
 
 				if (processed)
 					continue;
@@ -80,9 +138,12 @@ static void findShortestPathMinti(i32 startId, i32 endId, std::vector<Node>& nod
 			}
 		}
 
-		bool& processed = std::get<3>(minNodeSrc->weights[minWeightId]);
-		i32 destId = std::get<0>(minNodeSrc->weights[minWeightId]);
- 		std::get<2>(minNodeSrc->weights[minWeightId]) = true;
+		if (!minNodeSrc || !minNodeDest)
+			break;
+
+		bool& processed = minNodeSrc->weights[minWeightId].processed;
+		i32 destId = minNodeSrc->weights[minWeightId].dest;
+ 		minNodeSrc->weights[minWeightId].optimal = true;
 		i32& totalWeigth = minNodeDest->totalWeight;
 		totalWeigth = minWeight;
 		processed = true;
@@ -94,6 +155,9 @@ static void findShortestPathMinti(i32 startId, i32 endId, std::vector<Node>& nod
 						   [&](const Node* node) { return node->id == minNodeDest->id; }),
 			unAvailableNodes.end());
 	}
+
+	fillShortestPath(endId, nodes);
+	int a = 4;
 }
 
 Application::Application() {
@@ -139,28 +203,6 @@ Application::Application() {
 	}
 
 	m_needToUpdate = false;
-
-	addNode(200, 200);
-	addNode(50, 50);
-	addNode(222, 50);
-	addNode(300, 50);
-	addNode(300, 100);
-	addNode(300, 150);
-	addNode(300, 200);
-
-	setNodeWeight(1, 2, 9);
-	setNodeWeight(1, 3, 7);
-	setNodeWeight(1, 4, 6);
-	setNodeWeight(2, 3, 2);
-	setNodeWeight(2, 4, 8);
-	setNodeWeight(2, 5, 4);
-	setNodeWeight(2, 6, 6);
-	setNodeWeight(3, 5, 1);
-	setNodeWeight(2, 7, 7);
-	setNodeWeight(4, 6, 2);
-	setNodeWeight(5, 7, 8);
-	setNodeWeight(6, 7, 5);
-	setNodeWeight(7, 3, 4);
 }
 
 void Application::runLoop() {
@@ -180,21 +222,10 @@ void Application::handleUI() {
 	///////// UI //////////////////////////////////////////////////////
 	ImGui::PushFont(0);
 	ImGui::SetNextWindowSizeConstraints(ImVec2(0, 0), ImVec2(FLT_MAX, FLT_MAX));
-	ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x * 0.7f, ImGui::GetIO().DisplaySize.y));
-	ImGui::SetNextWindowPos(ImVec2(0, 0));
 
-	ImGuiWindowFlags flags =
-		ImGuiWindowFlags_NoTitleBar |
-		ImGuiWindowFlags_NoResize |
-		ImGuiWindowFlags_NoCollapse |
-		ImGuiWindowFlags_NoMove;
+	renderNodeScene();
+	renderControlPanel();
 
-	ImGui::Begin("##HiddenTitle", nullptr, flags);
-	handleWeightModify();
-	moveNodes();
-	drawNodes();
-
-	ImGui::End();
 	ImGui::PopFont();
 	///////////////////////////////////////////////////////////////////
 	
@@ -202,12 +233,42 @@ void Application::handleUI() {
 	ent::ui::imgui::renderFrame((GLFWwindow*)m_window.getHandle());
 	glfwSwapBuffers((GLFWwindow*)m_window.getHandle());
 	///////////////////////////////////////////////////////////////////
-}
-
+} 
 void Application::handleProcessing() {
 	modifyWeights();
 
-	findShortestPathMinti(1, nodes.size(), nodes);
+	if(activeTool == Tool::MoveNode)
+		moveNodes();
+
+	if (activeTool == Tool::AddNode) {
+		if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+			ImVec2 mousePos = ImGui::GetMousePos();
+			
+			if (mousePos.x > 0 && mousePos.x < m_window.getWidth() * nodeSceneWidth && mousePos.y > 0 && mousePos.y < m_window.getHeight())
+				addNode(mousePos.x, mousePos.y);
+		}
+	}
+
+	if (activeTool == Tool::ConnectNodes) {
+		connectNodes();
+	}
+
+	if (activeTool == Tool::DeleteNode) {
+		deleteNode();
+	}
+	
+	if (activeTool == Tool::FindShortestPath) {
+		findPath();
+	}	
+
+	if (activeTool == Tool::ClearPath) {
+		clearPath();
+	}
+	
+	if (activeTool == Tool::DeleteWeight) {
+		deleteWeight();
+	}
+		
 	if (!m_needToUpdate) 
 		return;
 
@@ -308,7 +369,7 @@ void Application::imguiPadding(i32 x, i32 y) {
 	if (y) ImGui::SetCursorPosY(ImGui::GetCursorPosY() + y);
 }
 
-void Application::drawCircle(i32v2& center, f32 radius, f32v4 color, bool alwaysOnTop, bool filled, float thickness, int segments) {
+void Application::drawCircle(f32v2& center, f32 radius, f32v4 color, bool alwaysOnTop, bool filled, float thickness, int segments) {
 	ImDrawList* draw_list = alwaysOnTop ? ImGui::GetForegroundDrawList() : ImGui::GetWindowDrawList();
 
 	if (filled) {
@@ -396,14 +457,14 @@ static bool isNodeTwoSided(const Node& node, const Node& otherNode, const std::v
 	bool reverseDir = false;
 
 	for (const auto& weight : node.weights) {
-		if (std::get<0>(weight) == otherNode.id) {
+		if (weight.dest == otherNode.id) {
 			directDir = true;
 			break;
 		}
 	}
 
 	for (const auto& weight : otherNode.weights) {
-		if (std::get<0>(weight) == node.id) {
+		if (weight.dest == node.id) {
 			reverseDir = true;
 			break;
 		}
@@ -417,7 +478,7 @@ void Application::drawNodes() {
 		// Render lines
 		for (auto& weight : node.weights) {
 			auto it = std::find_if(nodes.begin(), nodes.end(), [weight](const Node& otherNode) {
-				return otherNode.id == std::get<0>(weight); });
+				return otherNode.id == weight.dest; });
 
 			if (it == nodes.end())
 				continue;
@@ -437,23 +498,35 @@ void Application::drawNodes() {
 				end -= dir * (float)node.size;
 			}
 		
-			std::string weidghtText = std::to_string(std::get<1>(weight));
-			Node* destNode = getNodeById(std::get<0>(weight), nodes);
+			std::string weidghtText = std::to_string(weight.weight);
+			Node* destNode = getNodeById(weight.dest, nodes);
 			std::string totalWeightText = std::to_string(destNode->totalWeight);
 
-			drawText(destNode->center - i32v2(0, destNode->size * 1.5), totalWeightText, {1,1,1,1}, true);
+			f32v2 totalWeightPos = f32v2(destNode->center) * zoom - f32v2(0, destNode->size * 1.5f * zoom);
+			totalWeightPos += offset;
+			drawText(totalWeightPos, totalWeightText, {1,1,1,1}, true);
 
-			bool optimal = std::get<2>(weight);
-			if (optimal) {
+
+			start = start * zoom + offset;
+			end = end * zoom + offset;
+
+			if (weight.optimal) {
 				drawLineWithText(start, end, 0.5, weidghtText, {0.569,0.196,0.1,1}, {1,1,1,1});
 			} else {
 				drawLineWithText(start, end, 0.5, weidghtText, {0.269,0.496,0.5,1}, {1,1,1,1});
 			}
+
+			if(weight.targetPath)
+				drawLineWithText(start, end, 0.5, weidghtText, {0.169,0.496,0.1,1}, {1,1,1,1});
+
+
 		}
 
 		// Render nodes
-		drawCircle(node.center, node.size, node.color, false, true);
-		drawText(node.center, std::to_string(node.id));
+		f32v2 circelPos = f32v2(node.center) * zoom + offset;
+		f32 circleSize = node.size * zoom;
+		drawCircle(circelPos, circleSize, node.color, false, true);
+		drawText(circelPos, std::to_string(node.id));
 	}
 }
 
@@ -509,9 +582,99 @@ void Application::handleWeightModify() {
 	ImGui::End();
 }
 
+void Application::renderNodeScene() {
+	ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x * nodeSceneWidth, ImGui::GetIO().DisplaySize.y));
+	ImGui::SetNextWindowPos(ImVec2(0, 0));
+
+	ImGuiWindowFlags flags =
+		ImGuiWindowFlags_NoTitleBar |
+		ImGuiWindowFlags_NoResize |
+		ImGuiWindowFlags_NoCollapse |
+		ImGuiWindowFlags_NoMove;
+
+	ImGui::Begin("##HiddenTitle", nullptr, flags);
+	drawNodes();
+	handleWeightModify();
+	ImGui::End();
+}
+
+static bool ToggleButton(const char* label, bool* v) {
+	bool pressed = ImGui::Button(label);
+	if (pressed)
+		*v = !*v;
+	return pressed;
+}
+
+
+void Application::renderControlPanel() {
+
+	float toolWindowWidth = ImGui::GetIO().DisplaySize.x * (1.0f - nodeSceneWidth); 
+	float toolWindowX = ImGui::GetIO().DisplaySize.x * nodeSceneWidth;    
+
+	ImGui::SetNextWindowSize(ImVec2(toolWindowWidth, ImGui::GetIO().DisplaySize.y));
+	ImGui::SetNextWindowPos(ImVec2(toolWindowX, 0));
+
+	ImGuiWindowFlags flags =
+		ImGuiWindowFlags_NoTitleBar |
+		ImGuiWindowFlags_NoResize |
+		ImGuiWindowFlags_NoCollapse |
+		ImGuiWindowFlags_NoMove;
+
+	ImGui::Begin("##Tools", nullptr, flags);
+
+	ImVec2 available = ImGui::GetContentRegionAvail();
+	ImVec2 itemSpacing = ImGui::GetStyle().ItemSpacing;
+	ImVec2 framePadding = ImGui::GetStyle().FramePadding;
+	int buttonCount = 7;
+	int totalRows = buttonCount + 2; // spacing rows
+
+	// Account for spacing between buttons
+	float buttonHeight = (available.y - itemSpacing.y * (totalRows - 1)) / buttonCount;
+
+	// Subtract internal padding so actual button rectangle fits exactly
+	float adjustedButtonHeight = buttonHeight - 2 * framePadding.y;
+	float adjustedButtonWidth = available.x;
+
+	auto toolButton = [&](Tool tool, const char* label) {
+		bool selected = (activeTool == tool);
+
+		if (selected)
+			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 1.0f, 1.0f));
+
+		ImVec2 size = ImVec2(adjustedButtonWidth, adjustedButtonHeight);
+		if (ImGui::Button(label, size)) {
+			activeTool = tool;
+			srcTarget = nullptr;
+			dstTarget = nullptr;
+		}
+
+		if (selected)
+			ImGui::PopStyleColor();
+
+		ImGui::Dummy(ImVec2(0, itemSpacing.y));
+		};
+
+
+	toolButton(Tool::AddNode, "Add Node");
+	toolButton(Tool::MoveNode, "Move Node");
+	toolButton(Tool::DeleteNode, "Delete Node");
+	toolButton(Tool::ConnectNodes, "Connect Nodes");
+	toolButton(Tool::DeleteWeight, "Delete Weight");
+	toolButton(Tool::FindShortestPath, "Find Path");
+	toolButton(Tool::ClearPath, "Clear Path");
+
+	ImGui::End();
+}
+
 
 void Application::addNode(i32 x, i32 y) {
-	i32 id = nodes.size() + 1;
+	i32 maxId = 0;
+	for (const auto& node : nodes) {
+		if (node.id > maxId)
+			maxId = node.id;
+	}
+
+	i32 id = maxId + 1;
 	Node node({x, y}, nodeSize, {0.972,0.624,0.357,1}, id, -1);
 	nodes.push_back(node);
 }
@@ -538,8 +701,10 @@ void Application::moveNodes() {
 	static bool moving = false;
 
 	for (auto& node : nodes) {
-		bool isMouseOver = (mousePos.x >= node.center.x - node.size && mousePos.x <= node.center.x + node.size &&
-							mousePos.y >= node.center.y - node.size && mousePos.y <= node.center.y + node.size);
+		f32v2 nodedCenter = f32v2(node.center) * zoom + offset;
+		f32 nodeSize = node.size * zoom;
+		bool isMouseOver = (mousePos.x >= nodedCenter.x - nodeSize && mousePos.x <= nodedCenter.x + nodeSize &&
+							mousePos.y >= nodedCenter.y - nodeSize && mousePos.y <= nodedCenter.y + nodeSize);
 
 		if (!isMouseOver && !moving)
 			continue;
@@ -555,8 +720,8 @@ void Application::moveNodes() {
 		if (moving) {
 			Node newNode = node;
 
-			newNode.center.x = mousePos.x;
-			newNode.center.y = mousePos.y;
+			newNode.center.x = mousePos.x / zoom;
+			newNode.center.y = mousePos.y / zoom;
 
 			if (isValidDistance(newNode, nodes)) {
 				node = newNode;
@@ -572,7 +737,7 @@ void Application::modifyWeights() {
 
 		for (auto& weight : node.weights) {
 			auto it = std::find_if(nodes.begin(), nodes.end(), [weight](const Node& otherNode) {
-				return otherNode.id == std::get<0>(weight); });
+				return otherNode.id == weight.dest; });
 
 			if (it == nodes.end())
 				continue;
@@ -582,15 +747,19 @@ void Application::modifyWeights() {
 			f32v2 dir = glm::normalize(glm::vec3(end.x - start.x, end.y - start.y, 0));
 			f32v2 right = {dir.y, -dir.x};
 
+
 			if (isNodeTwoSided(node, *it, nodes)) {
-				start += right * (float)node.size * 0.5f;
-				end += right * (float)node.size * 0.5f;
+				start -= right * (float)node.size * 0.5f;
+				end -= right * (float)node.size * 0.5f;
 				start += dir * (float)node.size * cos(0.5f);
 				end -= dir * (float)it->size * cos(0.5f);
-			} else {
-				start += dir * (float)node.size;
-				end -= dir * (float)it->size;
 			}
+
+			start = start * zoom + offset;
+			end = end * zoom + offset;
+			mousePos.x = mousePos.x * zoom + offset.x;
+			mousePos.y = mousePos.y * zoom + offset.y;
+
 
 			f32v2 mid = (end + start) * 0.5f;
 			bool isMouseOver = (mousePos.x >= mid.x - node.size && mousePos.x <= mid.x + node.size &&
@@ -607,7 +776,8 @@ void Application::modifyWeights() {
 			if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
 				inputActive = true;
 				inputPos = mid;
-				inputModifyValue = &std::get<1>(weight);
+				inputModifyValue = &weight.weight;
+				break;
 			}
 		}
 	
@@ -622,23 +792,184 @@ void Application::setNodeWeight(i32 nodeId, i32 destId, i32 cost) {
 		bool exists = false;
 		bool optimal = false;
 		for (auto& weight : node.weights) {
-			if (std::get<1>(weight) > cost) {
-				std::get<2>(weight) = false;
-				optimal = true;
+			if (weight.weight > cost) {
+				weight.optimal = false;
+				//optimal = true;
 			}
 	
-			if (std::get<0>(weight) != destId)
+			if (weight.dest != destId)
 				continue;
 
-			std::get<1>(weight) = cost;
+			weight.weight = cost;
 			exists = true;
 		}
 
-		if (!node.weights.size())
-			optimal = true;
+		//if (!node.weights.size())
+		//	optimal = true;
 
-		if (!exists)
+		if (!exists) {
 			node.weights.emplace_back(destId, cost, optimal, false);
+			Node* destNode = getNodeById(destId, nodes);
+			destNode->hasPath = true;
+		}
+	}
+}
+
+void Application::connectNodes() {
+	ImVec2 mousePos = ImGui::GetIO().MousePos;
+
+	for (auto& node : nodes) {
+		f32v2 nodedCenter = f32v2(node.center) * zoom + offset;
+		f32 nodeSize = node.size * zoom;
+		bool isMouseOver = (mousePos.x >= nodedCenter.x - nodeSize && mousePos.x <= nodedCenter.x + nodeSize &&
+							mousePos.y >= nodedCenter.y - nodeSize && mousePos.y <= nodedCenter.y + nodeSize);
+
+		if (!isMouseOver || !ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+			continue;
+
+		if (targetTimer.active())
+			continue;
+
+		targetTimer.setTimer(clickDelay);
+
+		if (srcTarget == nullptr) {
+			srcTarget = &node;
+		} else {
+			dstTarget = &node;
+
+			if (srcTarget == dstTarget) {
+				srcTarget = nullptr;
+				dstTarget = nullptr;
+				return;
+			}
+
+			setNodeWeight(srcTarget->id, dstTarget->id, 1);
+			srcTarget = nullptr;
+			dstTarget = nullptr;
+		}
+	}
+}
+
+void Application::deleteNode() {
+	ImVec2 mousePos = ImGui::GetIO().MousePos;
+
+	for (auto& node : nodes) {
+		f32v2 nodedCenter = f32v2(node.center) * zoom + offset;
+		f32 nodeSize = node.size * zoom;
+		bool isMouseOver = (mousePos.x >= nodedCenter.x - nodeSize && mousePos.x <= nodedCenter.x + nodeSize &&
+							mousePos.y >= nodedCenter.y - nodeSize && mousePos.y <= nodedCenter.y + nodeSize);
+
+		if (!isMouseOver || !ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+			continue;
+
+		if (targetTimer.active())
+			continue;
+
+		targetTimer.setTimer(clickDelay);
+
+		deleteNode(node.id);
+	}
+}
+
+void Application::deleteNode(i32 nodeId) {
+	for (auto& node : nodes) {
+		std::vector<Weight> newWeights;
+		for (auto& weigh : node.weights) {
+			if (weigh.dest != nodeId)
+				newWeights.push_back(weigh);
+		}
+		node.weights = newWeights;
+	}
+
+	nodes.erase(
+		std::remove_if(nodes.begin(), nodes.end(),
+					   [nodeId](const Node& node) { return node.id == nodeId; }),
+		nodes.end());
+}
+
+void Application::findPath() {
+	ImVec2 mousePos = ImGui::GetIO().MousePos;
+
+	for (auto& node : nodes) {
+		f32v2 nodedCenter = f32v2(node.center) * zoom + offset;
+		f32 nodeSize = node.size * zoom;
+		bool isMouseOver = (mousePos.x >= nodedCenter.x - nodeSize && mousePos.x <= nodedCenter.x + nodeSize &&
+							mousePos.y >= nodedCenter.y - nodeSize && mousePos.y <= nodedCenter.y + nodeSize);
+
+		if (!isMouseOver || !ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+			continue;
+
+		if (targetTimer.active())
+			continue;
+
+		targetTimer.setTimer(clickDelay);
+
+		if (srcTarget == nullptr) {
+			srcTarget = &node;
+		} else {
+			dstTarget = &node;
+
+			if (srcTarget == dstTarget) {
+				srcTarget = nullptr;
+				dstTarget = nullptr;
+				return;
+			}
+
+			findShortestPathMinti(srcTarget->id, dstTarget->id, nodes);
+			srcTarget = nullptr;
+			dstTarget = nullptr;
+		}
+	}
+}
+
+void Application::clearPath() {
+	for (auto& node : nodes) {
+		for (auto& weight : node.weights) {
+			weight.optimal = false;
+			weight.processed = false;
+			weight.targetPath = false;
+		}
+		node.totalWeight = -1;
+		node.hasPath = false;
+	}
+}
+
+void Application::deleteWeight() {
+	ImVec2 mousePos = ImGui::GetIO().MousePos;
+
+	for (auto& node : nodes) {
+		f32v2 nodedCenter = f32v2(node.center) * zoom + offset;
+		f32 nodeSize = node.size * zoom;
+		bool isMouseOver = (mousePos.x >= nodedCenter.x - nodeSize && mousePos.x <= nodedCenter.x + nodeSize &&
+							mousePos.y >= nodedCenter.y - nodeSize && mousePos.y <= nodedCenter.y + nodeSize);
+
+		if (!isMouseOver || !ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+			continue;
+
+		if (targetTimer.active())
+			continue;
+
+		targetTimer.setTimer(clickDelay);
+
+		if (srcTarget == nullptr) {
+			srcTarget = &node;
+		} else {
+			dstTarget = &node;
+
+			if (srcTarget == dstTarget) {
+				srcTarget = nullptr;
+				dstTarget = nullptr;
+				return;
+			}
+
+			srcTarget->weights.erase(
+				std::remove_if(srcTarget->weights.begin(), srcTarget->weights.end(),
+							   [&](const Weight& weight) { return weight.dest == dstTarget->id; }),
+				srcTarget->weights.end());
+
+			srcTarget = nullptr;
+			dstTarget = nullptr;
+		}
 	}
 }
 

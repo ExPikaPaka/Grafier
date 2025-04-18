@@ -95,9 +95,7 @@ namespace ent {
 
 		Logger::Logger() {
 			logToConsole = true;
-			logToFile = true;
-			filePath = getDate() + ".txt";
-			file.open(filePath, std::ios::app);
+			logToFile = false;
 			logLevel = level::DEBUG;
 		}
 

@@ -136,6 +136,7 @@
   <ItemGroup>
     <ClCompile Include="Algorithm\Math.cpp" />
     <ClCompile Include="App\Application.cpp" />
+    <ClCompile Include="Graph\Node.cpp" />
     <ClCompile Include="Image\Image.cpp" />
     <ClCompile Include="Logger\Logger.cpp" />
     <ClCompile Include="main.cpp" />

@@ -24,6 +24,10 @@ private:
 	i32 buttonHeightMedium = 40;
 	f32v4 defaultTextColor = { 1, 1, 1, 1 };
 	i32 nodeSize = 20;
+	f32 nodeSceneWidth = 0.7f;
+	f32 zoom = 1.0f;
+	f32v2 offset = {0.0f, 0.0f};
+
 
 	std::string resFilepath = "res/";
 	std::string fontsFilePath = resFilepath + "fonts/";
@@ -38,12 +42,29 @@ private:
 
 	ent::util::Timer weightTimer;
 	i32 doubleClickThresh = 500;
+	i32 clickDelay = 200;
 
 	bool inputActive = false;
 	i32v2 inputPos = {0,0};
 	i32* inputModifyValue = nullptr;
 
+	ent::util::Timer targetTimer;
+	Node* srcTarget = nullptr;
+	Node* dstTarget = nullptr;
+
 	bool m_needToUpdate;
+
+	enum class Tool {
+		AddNode,
+		MoveNode,
+		DeleteNode,
+		FindShortestPath,
+		ConnectNodes,
+		DeleteWeight,
+		ClearPath,
+	};
+
+	Tool activeTool = Tool::AddNode;
 
 	void handleUI();
 	void handleProcessing();
@@ -58,7 +79,12 @@ private:
 	void moveNodes();
 	void modifyWeights();
 	void setNodeWeight(i32 nodeId, i32 destId, i32 cost);
-
+	void connectNodes();
+	void deleteNode();
+	void deleteNode(i32 nodeId);
+	void findPath();
+	void clearPath();
+	void deleteWeight();
 
 	///////// UI helping elements //////////////////////////////////////////
 
@@ -78,8 +104,12 @@ private:
 
 	void handleWeightModify();
 
+	void renderNodeScene();
+
+	void renderControlPanel();
+
 	// Adds circle drawCall using IMGUI
-	void drawCircle(i32v2& center, f32 radius, f32v4 color, bool filled = false, bool alwaysOnTop = false, float thickness = 1.0f, int segments = 64);   
+	void drawCircle(f32v2& center, f32 radius, f32v4 color, bool filled = false, bool alwaysOnTop = false, float thickness = 1.0f, int segments = 64);   
 
 	void drawText(const i32v2& center, const std::string& text, const f32v4& color = {1, 1, 1, 1}, bool alwaysOnTop = false);
 
